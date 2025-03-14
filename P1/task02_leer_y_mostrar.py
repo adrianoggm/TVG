@@ -1,4 +1,5 @@
 import itk
+import vtk
 import matplotlib.pyplot as plt
 import sys
 
@@ -7,15 +8,23 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 input_filename = sys.argv[1]
-
-# Leer la imagen
 itk_image = itk.imread(input_filename)
 
-# Convertir la imagen a un arreglo NumPy (vista, sin copiar datos)
-array_view = itk.array_view_from_image(itk_image)
+# Convertir la imagen ITK a un objeto vtkImageData
+vtk_image = itk.vtk_image_from_image(itk_image)
 
-# Mostrar la imagen (suponiendo que es en escala de grises)
-plt.imshow(array_view, cmap='gray')
-plt.title("Imagen de Entrada")
-plt.axis("off")
-plt.show()
+# Configurar el visualizador de VTK
+viewer = vtk.vtkImageViewer2()
+viewer.SetInputData(vtk_image)
+
+# Crear un interactor para la ventana de renderizado
+render_window_interactor = vtk.vtkRenderWindowInteractor()
+viewer.SetupInteractor(render_window_interactor)
+
+# Renderizar la imagen
+viewer.Render()
+viewer.GetRenderer().ResetCamera()
+viewer.Render()
+
+# Iniciar el interactor para visualizar la imagen
+render_window_interactor.Start()
