@@ -17,12 +17,18 @@ except Exception as e:
     print("Error al leer la imagen:", e)
     sys.exit(1)
 
-# Calcular el radio (la mitad del kernel)
+# Calcular el radio (usamos la mitad del tamaño del kernel)
 radius = kernel_size // 2
 
-# Aplicar el filtro promedio (mean filter) usando la interfaz funcional de ITK
+# Aplicar el filtro promedio (mean filter) usando el interfaz orientado a objetos
 try:
-    filtered = itk.mean_image_filter(image, radius=radius)
+    ImageType = type(image)
+    MeanFilterType = itk.MeanImageFilter[ImageType, ImageType]
+    mean_filter = MeanFilterType.New()
+    mean_filter.SetInput(image)
+    mean_filter.SetRadius(radius)
+    mean_filter.Update()  # Forzamos la actualización de la tubería
+    filtered = mean_filter.GetOutput()
 except Exception as e:
     print("Error al aplicar el filtro promedio:", e)
     sys.exit(1)
@@ -56,6 +62,23 @@ actor_right.GetMapper().SetInputData(vtk_filtered)
 
 renderer_left.AddActor(actor_left)
 renderer_right.AddActor(actor_right)
+
+# Añadir etiquetas descriptivas en cada viewport usando vtkTextActor
+text_actor_left = vtk.vtkTextActor()
+text_actor_left.SetInput("Original")
+text_prop_left = text_actor_left.GetTextProperty()
+text_prop_left.SetFontSize(24)
+text_prop_left.SetColor(1.0, 1.0, 1.0)  # Color blanco
+text_actor_left.SetDisplayPosition(10, 10)
+renderer_left.AddActor2D(text_actor_left)
+
+text_actor_right = vtk.vtkTextActor()
+text_actor_right.SetInput(f"Filtrada (kernel = {kernel_size})")
+text_prop_right = text_actor_right.GetTextProperty()
+text_prop_right.SetFontSize(24)
+text_prop_right.SetColor(1.0, 1.0, 1.0)
+text_actor_right.SetDisplayPosition(10, 10)
+renderer_right.AddActor2D(text_actor_right)
 
 # Ajustar las cámaras para que ambas imágenes se vean correctamente
 renderer_left.ResetCamera()
