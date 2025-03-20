@@ -69,7 +69,7 @@ text_actor_left.SetInput("Original")
 text_prop_left = text_actor_left.GetTextProperty()
 text_prop_left.SetFontSize(24)
 text_prop_left.SetColor(1.0, 1.0, 1.0)  # Color blanco
-text_actor_left.SetDisplayPosition(10, 10)
+text_actor_left.SetDisplayPosition(80, 20)
 renderer_left.AddActor2D(text_actor_left)
 
 text_actor_right = vtk.vtkTextActor()
@@ -77,7 +77,7 @@ text_actor_right.SetInput(f"Filtrada (kernel = {kernel_size})")
 text_prop_right = text_actor_right.GetTextProperty()
 text_prop_right.SetFontSize(24)
 text_prop_right.SetColor(1.0, 1.0, 1.0)
-text_actor_right.SetDisplayPosition(10, 10)
+text_actor_right.SetDisplayPosition(600, 20)
 renderer_right.AddActor2D(text_actor_right)
 
 # Ajustar las cámaras para que ambas imágenes se vean correctamente
