@@ -1,0 +1,3 @@
+/mnt/c/Users/adria/OneDrive/Documentos/TVG/P1_C/CMakeFiles/HelloWorld.dir
+/mnt/c/Users/adria/OneDrive/Documentos/TVG/P1_C/CMakeFiles/edit_cache.dir
+/mnt/c/Users/adria/OneDrive/Documentos/TVG/P1_C/CMakeFiles/rebuild_cache.dir
