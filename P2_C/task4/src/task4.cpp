@@ -1,123 +1,140 @@
 #include "itkImage.h"
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
-#include "itkMeanImageFilter.h"
-#include "itkMedianImageFilter.h"
+#include "itkRescaleIntensityImageFilter.h"
+
+#include "itkGradientAnisotropicDiffusionImageFilter.h"
+#include "itkCurvatureAnisotropicDiffusionImageFilter.h"
+#include "itkCurvatureFlowImageFilter.h"
 
 #include <iostream>
 #include <sstream>
+#include <string>
 
 int main(int argc, char * argv[])
 {
-  if(argc != 2)
+  if(argc < 2)
   {
-    std::cerr << "USAGE:\n" << argv[0] << " <Image Filename>" << std::endl;
+    std::cerr << "Usage:\n" << argv[0] << " inputImageFile" << std::endl;
     return EXIT_FAILURE;
   }
-
-  const char * inputFile = argv[1];
-
-  // Definir tipo de píxel e imagen (2D)
-  typedef unsigned char                    PixelType;
-  const unsigned int                       Dimension = 2;
-  typedef itk::Image<PixelType, Dimension> ImageType;
-
-  // Lector de imagen
-  typedef itk::ImageFileReader<ImageType>  ReaderType;
+  
+  // Extraer la base y extensión del archivo de entrada
+  std::string inputFilename(argv[1]);
+  size_t lastSlash = inputFilename.find_last_of("/\\");
+  std::string filename = (lastSlash == std::string::npos) ? inputFilename : inputFilename.substr(lastSlash + 1);
+  size_t lastDot = filename.find_last_of(".");
+  std::string baseName = (lastDot == std::string::npos) ? filename : filename.substr(0, lastDot);
+  std::string ext = (lastDot == std::string::npos) ? ".jpg" : filename.substr(lastDot);
+  
+  // Directorio de salida
+  std::string outputDir = "../../../images/images_generated/";
+  
+  // Tipos de imagen:
+  // - Imagen interna para procesamiento: float.
+  // - Imagen de escritura: unsigned char (requerido para JPEG).
+  typedef float                                  InternalPixelType;
+  const unsigned int                             Dimension = 2;
+  typedef itk::Image<InternalPixelType, Dimension> InternalImageType;
+  
+  typedef unsigned char                          WritePixelType;
+  typedef itk::Image<WritePixelType, Dimension>  WriteImageType;
+  
+  // Lector de imagen (en formato interno)
+  typedef itk::ImageFileReader<InternalImageType> ReaderType;
   ReaderType::Pointer reader = ReaderType::New();
-  reader->SetFileName(inputFile);
-
-  try
-  {
+  reader->SetFileName(inputFilename);
+  try {
     reader->Update();
   }
-  catch(itk::ExceptionObject & error)
-  {
+  catch(itk::ExceptionObject & error) {
     std::cerr << "Error leyendo la imagen: " << error << std::endl;
     return EXIT_FAILURE;
   }
-
-  // Mostrar dimensiones de la imagen
-  ImageType::RegionType region = reader->GetOutput()->GetLargestPossibleRegion();
-  ImageType::SizeType size = region.GetSize();
-  std::cout << "Dimensiones de la imagen: " << size[0] << " x " << size[1] << std::endl;
-
-  // Filtros de media (mean):
-  // Para una vecindad de 3x3 se usa un radio de 1; para 5x5, radio de 2.
-  typedef itk::MeanImageFilter<ImageType, ImageType> MeanFilterType;
-  MeanFilterType::Pointer meanFilter3x3 = MeanFilterType::New();
-  MeanFilterType::Pointer meanFilter5x5 = MeanFilterType::New();
-
-  ImageType::SizeType radius;
-  radius.Fill(1); // 3x3
-  meanFilter3x3->SetRadius(radius);
-  meanFilter3x3->SetInput(reader->GetOutput());
-
-  radius.Fill(2); // 5x5
-  meanFilter5x5->SetRadius(radius);
-  meanFilter5x5->SetInput(reader->GetOutput());
-
-  // Filtros de mediana:
-  typedef itk::MedianImageFilter<ImageType, ImageType> MedianFilterType;
-  MedianFilterType::Pointer medianFilter3x3 = MedianFilterType::New();
-  MedianFilterType::Pointer medianFilter5x5 = MedianFilterType::New();
-
-  radius.Fill(1); // 3x3
-  medianFilter3x3->SetRadius(radius);
-  medianFilter3x3->SetInput(reader->GetOutput());
-
-  radius.Fill(2); // 5x5
-  medianFilter5x5->SetRadius(radius);
-  medianFilter5x5->SetInput(reader->GetOutput());
-
-  try
-  {
-    meanFilter3x3->Update();
-    meanFilter5x5->Update();
-    medianFilter3x3->Update();
-    medianFilter5x5->Update();
+  
+  // 1. Gradient Anisotropic Diffusion Filter (Perona-Malik)
+  typedef itk::GradientAnisotropicDiffusionImageFilter<InternalImageType, InternalImageType>
+    GradientAnisotropicDiffusionFilterType;
+  GradientAnisotropicDiffusionFilterType::Pointer gradientDiffusion =
+    GradientAnisotropicDiffusionFilterType::New();
+  gradientDiffusion->SetInput(reader->GetOutput());
+  gradientDiffusion->SetNumberOfIterations(5);
+  gradientDiffusion->SetTimeStep(0.25);
+  gradientDiffusion->SetConductanceParameter(3.0);
+  try {
+    gradientDiffusion->Update();
   }
-  catch(itk::ExceptionObject & error)
-  {
-    std::cerr << "Error durante el filtrado: " << error << std::endl;
+  catch(itk::ExceptionObject & error) {
+    std::cerr << "Error en GradientAnisotropicDiffusionImageFilter: " << error << std::endl;
     return EXIT_FAILURE;
   }
-
-  // Directorio de salida (ajusta la ruta según la estructura)
-  std::string outputDir = "../../../images/images_generated/";
-
-  // Escritores para guardar las imágenes filtradas
-  typedef itk::ImageFileWriter<ImageType> WriterType;
-
-  WriterType::Pointer writerMean3x3 = WriterType::New();
-  writerMean3x3->SetFileName(outputDir + "mean_3x3.jpg");
-  writerMean3x3->SetInput(meanFilter3x3->GetOutput());
-
-  WriterType::Pointer writerMean5x5 = WriterType::New();
-  writerMean5x5->SetFileName(outputDir + "mean_5x5.jpg");
-  writerMean5x5->SetInput(meanFilter5x5->GetOutput());
-
-  WriterType::Pointer writerMedian3x3 = WriterType::New();
-  writerMedian3x3->SetFileName(outputDir + "median_3x3.jpg");
-  writerMedian3x3->SetInput(medianFilter3x3->GetOutput());
-
-  WriterType::Pointer writerMedian5x5 = WriterType::New();
-  writerMedian5x5->SetFileName(outputDir + "median_5x5.jpg");
-  writerMedian5x5->SetInput(medianFilter5x5->GetOutput());
-
-  try
-  {
-    writerMean3x3->Update();
-    writerMean5x5->Update();
-    writerMedian3x3->Update();
-    writerMedian5x5->Update();
+  
+  // 2. Curvature Anisotropic Diffusion Filter (MCDE)
+  typedef itk::CurvatureAnisotropicDiffusionImageFilter<InternalImageType, InternalImageType>
+    CurvatureAnisotropicDiffusionFilterType;
+  CurvatureAnisotropicDiffusionFilterType::Pointer curvatureDiffusion =
+    CurvatureAnisotropicDiffusionFilterType::New();
+  curvatureDiffusion->SetInput(reader->GetOutput());
+  curvatureDiffusion->SetNumberOfIterations(5);
+  curvatureDiffusion->SetTimeStep(0.125);
+  curvatureDiffusion->SetConductance(3.0);
+  try {
+    curvatureDiffusion->Update();
   }
-  catch(itk::ExceptionObject & error)
-  {
-    std::cerr << "Error escribiendo la imagen: " << error << std::endl;
+  catch(itk::ExceptionObject & error) {
+    std::cerr << "Error en CurvatureAnisotropicDiffusionImageFilter: " << error << std::endl;
     return EXIT_FAILURE;
   }
-
-  std::cout << "Imágenes filtradas guardadas en: " << outputDir << std::endl;
+  
+  // 3. Curvature Flow Filter
+  typedef itk::CurvatureFlowImageFilter<InternalImageType, InternalImageType> CurvatureFlowFilterType;
+  CurvatureFlowFilterType::Pointer curvatureFlow = CurvatureFlowFilterType::New();
+  curvatureFlow->SetInput(reader->GetOutput());
+  curvatureFlow->SetNumberOfIterations(10);
+  curvatureFlow->SetTimeStep(0.125);
+  try {
+    curvatureFlow->Update();
+  }
+  catch(itk::ExceptionObject & error) {
+    std::cerr << "Error en CurvatureFlowImageFilter: " << error << std::endl;
+    return EXIT_FAILURE;
+  }
+  
+  // Función lambda para convertir la imagen interna a WriteImageType y guardarla
+  typedef itk::RescaleIntensityImageFilter<InternalImageType, WriteImageType> RescaleFilterType;
+  typedef itk::ImageFileWriter<WriteImageType> WriterType;
+  
+  auto writeImage = [&](const std::string & suffix, InternalImageType::Pointer image)
+  {
+    RescaleFilterType::Pointer rescaler = RescaleFilterType::New();
+    rescaler->SetInput(image);
+    rescaler->SetOutputMinimum(0);
+    rescaler->SetOutputMaximum(255);
+    rescaler->Update();
+    
+    WriterType::Pointer writer = WriterType::New();
+    std::ostringstream oss;
+    oss << outputDir << baseName << "_" << suffix << ext;
+    writer->SetFileName(oss.str());
+    writer->SetInput(rescaler->GetOutput());
+    try {
+      writer->Update();
+      std::cout << "Guardado: " << oss.str() << std::endl;
+    }
+    catch(itk::ExceptionObject & error) {
+      std::cerr << "Error escribiendo la imagen (" << oss.str() << "): " << error << std::endl;
+    }
+  };
+  
+  // Guardar la imagen original
+  writeImage("original", reader->GetOutput());
+  
+  // Guardar cada una de las salidas con un sufijo indicando la técnica utilizada
+  writeImage("gradientAnisotropicDiffusion", gradientDiffusion->GetOutput());
+  writeImage("curvatureAnisotropicDiffusion", curvatureDiffusion->GetOutput());
+  writeImage("curvatureFlow", curvatureFlow->GetOutput());
+  
+  std::cout << "Imágenes guardadas en: " << outputDir << std::endl;
+  
   return EXIT_SUCCESS;
 }
