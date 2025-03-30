@@ -60,7 +60,7 @@ int main(int argc, char ** argv)
     GradientAnisotropicFilterType;
   GradientAnisotropicFilterType::Pointer gradientAnisotropicFilter = GradientAnisotropicFilterType::New();
   gradientAnisotropicFilter->SetInput(reader->GetOutput());
-  const unsigned int gradientAnisotropicNumberOfIterations = 15;
+  const unsigned int gradientAnisotropicNumberOfIterations = 24;
   const double gradientAnisotropicTimeStep = 0.01;
   const double gradientAnistropicConductance = 3;
   gradientAnisotropicFilter->SetNumberOfIterations(gradientAnisotropicNumberOfIterations);
@@ -80,7 +80,7 @@ int main(int argc, char ** argv)
     CurvatureAnisotropicFilterType;
   CurvatureAnisotropicFilterType::Pointer curvatureAnisotropicFilter = CurvatureAnisotropicFilterType::New();
   curvatureAnisotropicFilter->SetInput(reader->GetOutput());
-  const unsigned int curvatureAnisotropicNumberOfIterations = 5;
+  const unsigned int curvatureAnisotropicNumberOfIterations = 24;
   const double curvatureAnisotropicTimeStep = 0.01;
   const double curvatureAnisotropicConductance = 3;
   const bool curvatureAnisotropicUseImageSpacing = true;
@@ -104,7 +104,7 @@ int main(int argc, char ** argv)
   typedef itk::CurvatureFlowImageFilter<InputImageType, OutputImageType> CurvatureFlowFilterType;
   CurvatureFlowFilterType::Pointer curvatureFlowFilter = CurvatureFlowFilterType::New();
   curvatureFlowFilter->SetInput(reader->GetOutput());
-  const unsigned int curvatureFlowNumberOfIterations = 3;
+  const unsigned int curvatureFlowNumberOfIterations = 8;
   const double curvatureFlowTimeStep = 0.0025;
   curvatureFlowFilter->SetNumberOfIterations(curvatureFlowNumberOfIterations);
   curvatureFlowFilter->SetTimeStep(curvatureFlowTimeStep);
