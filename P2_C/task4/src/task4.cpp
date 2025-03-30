@@ -31,8 +31,8 @@ int main(int argc, char * argv[])
   std::string outputDir = "../../../images/images_generated/";
   
   // Tipos de imagen:
-  // - Imagen interna para procesamiento: float.
-  // - Imagen de escritura: unsigned char (requerido para JPEG).
+  // - Imagen interna (para procesamiento): float.
+  // - Imagen de escritura: unsigned char (para guardar en JPEG).
   typedef float                                  InternalPixelType;
   const unsigned int                             Dimension = 2;
   typedef itk::Image<InternalPixelType, Dimension> InternalImageType;
@@ -59,7 +59,7 @@ int main(int argc, char * argv[])
     GradientAnisotropicDiffusionFilterType::New();
   gradientDiffusion->SetInput(reader->GetOutput());
   gradientDiffusion->SetNumberOfIterations(5);
-  gradientDiffusion->SetTimeStep(0.25);
+  gradientDiffusion->SetTimeStep(0.25); // típico en 2D
   gradientDiffusion->SetConductanceParameter(3.0);
   try {
     gradientDiffusion->Update();
@@ -76,8 +76,9 @@ int main(int argc, char * argv[])
     CurvatureAnisotropicDiffusionFilterType::New();
   curvatureDiffusion->SetInput(reader->GetOutput());
   curvatureDiffusion->SetNumberOfIterations(5);
-  curvatureDiffusion->SetTimeStep(0.125);
-  curvatureDiffusion->SetConductance(3.0);
+  curvatureDiffusion->SetTimeStep(0.125); // típico en 2D
+  // Aquí se usa SetConductanceParameter en lugar de SetConductance
+  curvatureDiffusion->SetConductanceParameter(3.0);
   try {
     curvatureDiffusion->Update();
   }
@@ -100,7 +101,7 @@ int main(int argc, char * argv[])
     return EXIT_FAILURE;
   }
   
-  // Función lambda para convertir la imagen interna a WriteImageType y guardarla
+  // Función lambda para convertir la imagen interna (float) a unsigned char y guardarla
   typedef itk::RescaleIntensityImageFilter<InternalImageType, WriteImageType> RescaleFilterType;
   typedef itk::ImageFileWriter<WriteImageType> WriterType;
   
@@ -129,7 +130,7 @@ int main(int argc, char * argv[])
   // Guardar la imagen original
   writeImage("original", reader->GetOutput());
   
-  // Guardar cada una de las salidas con un sufijo indicando la técnica utilizada
+  // Guardar cada una de las salidas con sufijos indicando la técnica utilizada
   writeImage("gradientAnisotropicDiffusion", gradientDiffusion->GetOutput());
   writeImage("curvatureAnisotropicDiffusion", curvatureDiffusion->GetOutput());
   writeImage("curvatureFlow", curvatureFlow->GetOutput());
