@@ -5,5 +5,6 @@
 P2 
  task01 /TVG/P2_C/task1/build$ ./task1 ../../../images/BrainProtonDensitySlice256x256.png
 
- ./task2 ../../../images/saltAndP
-epperNoise1.jpg
+ ./task2 ../../../images/saltAndPepperNoise1.jpg
+ ../../../images/saltAndPepperNoise2.jpg
+ ../../../images/gaussianNoise.jpg

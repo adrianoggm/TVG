@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "ostream": "cpp"
-    }
+    },
+    "cmake.sourceDirectory": "C:/Users/adria/OneDrive/Documentos/TVG/P1_C"
 }
