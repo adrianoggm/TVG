@@ -2,124 +2,106 @@
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
 #include "itkRescaleIntensityImageFilter.h"
-#include "itkBinomialBlurImageFilter.h"
 #include "itkCurvatureFlowImageFilter.h"
 
 #include <iostream>
 #include <sstream>
 #include <string>
 
-int main(int argc, char ** argv)
+int main(int argc, char* argv[])
 {
-  if(argc < 2)
+  if (argc < 2)
   {
-    std::cerr << "Usage: " << std::endl;
-    std::cerr << "  " << argv[0] << " inputImageFile" << std::endl;
+    std::cerr << "Usage: " << argv[0] << " <inputImageFile>\n";
     return EXIT_FAILURE;
   }
 
-  // Parse input filename
+  // --- Extraer input, baseName y extensión ---
   std::string inputFilename(argv[1]);
-  size_t lastSlash = inputFilename.find_last_of("/\\");
-  std::string filename = (lastSlash == std::string::npos)
+  size_t posSlash = inputFilename.find_last_of("/\\");
+  std::string filename = (posSlash == std::string::npos)
     ? inputFilename
-    : inputFilename.substr(lastSlash + 1);
-  size_t lastDot = filename.find_last_of(".");
-  std::string baseName = (lastDot == std::string::npos)
+    : inputFilename.substr(posSlash + 1);
+  size_t posDot = filename.find_last_of('.');
+  std::string baseName = (posDot == std::string::npos)
     ? filename
-    : filename.substr(0, lastDot);
-  std::string ext = (lastDot == std::string::npos)
-    ? ".jpg"
-    : filename.substr(lastDot);
+    : filename.substr(0, posDot);
+  std::string ext = (posDot == std::string::npos)
+    ? "" 
+    : filename.substr(posDot);
 
-  // Output directory (adjust as needed)
+  // --- Directorio de salida (debe existir) ---
   std::string outputDir = "../../../images/images_generated/";
 
-  // Pixel and image types
-  typedef float                                  PixelType;
-  const unsigned int                            Dimension = 2;
-  typedef itk::Image<PixelType, Dimension>       ImageType;
-  typedef unsigned char                          WritePixelType;
-  typedef itk::Image<WritePixelType, Dimension>  WriteImageType;
+  // --- Definición de tipos ---
+  using PixelType       = float;
+  constexpr unsigned int Dimension = 2;
+  using ImageType       = itk::Image<PixelType, Dimension>;
+  using OutputImageType = ImageType;  
+  using WritePixelType  = unsigned char;
+  using WriteImageType  = itk::Image<WritePixelType, Dimension>;
 
-  // Reader
-  typedef itk::ImageFileReader<ImageType>        ReaderType;
+  // --- Lector ---
+  using ReaderType = itk::ImageFileReader<ImageType>;
   ReaderType::Pointer reader = ReaderType::New();
   reader->SetFileName(inputFilename);
-  try { reader->Update(); }
-  catch(itk::ExceptionObject & err) {
-    std::cerr << "Error reading image: " << err << std::endl;
+  try
+  {
+    reader->Update();
+  }
+  catch (itk::ExceptionObject& err)
+  {
+    std::cerr << "Error leyendo la imagen: " << err << std::endl;
     return EXIT_FAILURE;
   }
 
-  // 1) Binomial Blur Filter
-  typedef itk::BinomialBlurImageFilter<ImageType, ImageType>  BinomialFilterType;
-  BinomialFilterType::Pointer binomialFilter = BinomialFilterType::New();
-  binomialFilter->SetInput(reader->GetOutput());
-  const unsigned int binomialRepetitions = 5;
-  binomialFilter->SetRepetitions(binomialRepetitions);
-  try { binomialFilter->Update(); }
-  catch(itk::ExceptionObject & err) {
-    std::cerr << "Error in BinomialBlurImageFilter: " << err << std::endl;
+  // --- Filtro: CurvatureFlow ---
+  using CurvatureFlowFilterType = itk::CurvatureFlowImageFilter<ImageType, OutputImageType>;
+  CurvatureFlowFilterType::Pointer cf = CurvatureFlowFilterType::New();
+  cf->SetInput(reader->GetOutput());
+  cf->SetNumberOfIterations(8);
+  cf->SetTimeStep(0.0025);
+  try
+  {
+    cf->Update();
+  }
+  catch (itk::ExceptionObject& err)
+  {
+    std::cerr << "Error en CurvatureFlowImageFilter: " << err << std::endl;
     return EXIT_FAILURE;
   }
 
-  // 2) Curvature Flow Filter
-  typedef itk::CurvatureFlowImageFilter<ImageType, ImageType>  CurvatureFlowFilterType;
-  CurvatureFlowFilterType::Pointer curvatureFlow = CurvatureFlowFilterType::New();
-  curvatureFlow->SetInput(reader->GetOutput());
-  const unsigned int cfIterations = 8;
-  const double       cfTimeStep   = 0.0025;
-  curvatureFlow->SetNumberOfIterations(cfIterations);
-  curvatureFlow->SetTimeStep(cfTimeStep);
-  try { curvatureFlow->Update(); }
-  catch(itk::ExceptionObject & err) {
-    std::cerr << "Error in CurvatureFlowImageFilter: " << err << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  // Rescaler and writer typedefs
-  typedef itk::RescaleIntensityImageFilter<ImageType, WriteImageType>  RescaleFilterType;
-  typedef itk::ImageFileWriter<WriteImageType>                        WriterType;
-
-  // Lambda to rescale & write
-  auto writeImage = [&](const std::string & suffix, ImageType::Pointer img) {
-    RescaleFilterType::Pointer rescaler = RescaleFilterType::New();
+  // --- Función lambda para reescalar y escribir ---
+  using RescaleFilterType = itk::RescaleIntensityImageFilter<OutputImageType, WriteImageType>;
+  using WriterType        = itk::ImageFileWriter<WriteImageType>;
+  auto writeImage = [&](const std::string& suffix, ImageType::Pointer img)
+  {
+    auto rescaler = RescaleFilterType::New();
     rescaler->SetInput(img);
     rescaler->SetOutputMinimum(0);
     rescaler->SetOutputMaximum(255);
     rescaler->Update();
 
-    WriterType::Pointer writer = WriterType::New();
+    auto writer = WriterType::New();
     std::ostringstream oss;
     oss << outputDir << baseName << "_" << suffix << ext;
     writer->SetFileName(oss.str());
     writer->SetInput(rescaler->GetOutput());
-    try {
+    try
+    {
       writer->Update();
-      std::cout << "Saved: " << oss.str() << std::endl;
+      std::cout << "Guardada: " << oss.str() << std::endl;
     }
-    catch(itk::ExceptionObject & err) {
-      std::cerr << "Error writing image (" << oss.str() << "): " << err << std::endl;
+    catch (itk::ExceptionObject& err)
+    {
+      std::cerr << "Error escribiendo la imagen (" << oss.str() << "): " << err << std::endl;
     }
   };
 
-  // Write original (rescaled)
+  // --- Guardar original y resultado ---
   writeImage("original", reader->GetOutput());
+  writeImage("curvatureFlow", cf->GetOutput());
 
-  // Write binomial blur result
-  {
-    std::ostringstream oss;
-    oss << "binomialBlur_R" << binomialRepetitions;
-    writeImage(oss.str(), binomialFilter->GetOutput());
-  }
-
-  // Write curvature flow result
-  {
-    std::ostringstream oss;
-    oss << "curvatureFlow_I" << cfIterations;
-    writeImage(oss.str(), curvatureFlow->GetOutput());
-  }
-
+  std::cout << "Todas las imágenes guardadas en: " << outputDir << std::endl;
   return EXIT_SUCCESS;
 }

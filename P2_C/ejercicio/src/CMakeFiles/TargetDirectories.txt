@@ -1,3 +1,0 @@
-/mnt/c/Users/adria/OneDrive/Documentos/TVG/P2_C/ejercicio/src/CMakeFiles/ejercicio.dir
-/mnt/c/Users/adria/OneDrive/Documentos/TVG/P2_C/ejercicio/src/CMakeFiles/edit_cache.dir
-/mnt/c/Users/adria/OneDrive/Documentos/TVG/P2_C/ejercicio/src/CMakeFiles/rebuild_cache.dir
