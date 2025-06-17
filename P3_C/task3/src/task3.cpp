@@ -1,137 +1,75 @@
 #include "itkImage.h"
 #include "itkImageFileReader.h"
-#include "itkImageFileWriter.h"
-#include "itkDiscreteGaussianImageFilter.h"
-#include "itkBinomialBlurImageFilter.h"
-#include "itkRecursiveGaussianImageFilter.h"
+#include "itkCannyEdgeDetectionImageFilter.h"
 #include "itkRescaleIntensityImageFilter.h"
+#include "itkImageFileWriter.h"
 
+#include <string>
 #include <iostream>
 #include <sstream>
-#include <string>
 
-int main(int argc, char * argv[])
+int main(int argc, char *argv[])
 {
-  if(argc < 2)
-  {
-    std::cerr << "Usage:" << std::endl;
-    std::cerr << argv[0] << " inputImageFile" << std::endl;
-    return EXIT_FAILURE;
-  }
-  
-  // Parsear el nombre de archivo de entrada para obtener la base y extensión
-  std::string inputFilename(argv[1]);
-  size_t lastSlash = inputFilename.find_last_of("/\\");
-  std::string filename = (lastSlash == std::string::npos) ? inputFilename : inputFilename.substr(lastSlash + 1);
-  size_t lastDot = filename.find_last_of(".");
-  std::string baseName = (lastDot == std::string::npos) ? filename : filename.substr(0, lastDot);
-  std::string ext = (lastDot == std::string::npos) ? ".jpg" : filename.substr(lastDot);
-  
-  // Definir directorio de salida (ajusta la ruta según tu estructura)
-  std::string outputDir = "../../../images/images_generated/";
-  
-  // Tipos de imagen
-  typedef float                                  InternalPixelType;
-  const unsigned int                             Dimension = 2;
-  typedef itk::Image<InternalPixelType, Dimension>  InternalImageType;
-  
-  // Tipo de imagen para escribir (unsigned char, requerido por JPEG)
-  typedef unsigned char                          WritePixelType;
-  typedef itk::Image<WritePixelType, Dimension>  WriteImageType;
-  
-  // Lector de imagen (lectura en formato internal)
-  typedef itk::ImageFileReader<InternalImageType> ReaderType;
-  ReaderType::Pointer reader = ReaderType::New();
-  reader->SetFileName(inputFilename);
-  
-  try {
+    if (argc < 5)
+    {
+        std::cerr << "Usage: " << argv[0]
+                  << " <inputImage> <variance> <lowerThreshold> <upperThreshold> [outputDir]" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    const std::string inputPath       = argv[1];
+    const double variance             = std::stod(argv[2]);
+    const double lowerThreshold       = std::stod(argv[3]);
+    const double upperThreshold       = std::stod(argv[4]);
+    std::string outputDir = (argc > 5 ? argv[5] : "./");
+    if (outputDir.back() != '/' && outputDir.back() != '\\')
+        outputDir += '/';
+
+    // Extract basename
+    const size_t pos = inputPath.find_last_of("/\\");
+    std::string filename = (pos == std::string::npos ? inputPath : inputPath.substr(pos + 1));
+    const size_t dot = filename.find_last_of('.');
+    const std::string basename = (dot == std::string::npos ? filename : filename.substr(0, dot));
+
+    constexpr unsigned int Dimension = 2;
+    using PixelType = float;
+    using ImageType = itk::Image<PixelType, Dimension>;
+    using OutputPixelType = unsigned char;
+    using OutputImageType = itk::Image<OutputPixelType, Dimension>;
+
+    // Reader
+    using ReaderType = itk::ImageFileReader<ImageType>;
+    auto reader = ReaderType::New();
+    reader->SetFileName(inputPath);
     reader->Update();
-  }
-  catch(itk::ExceptionObject & error) {
-    std::cerr << "Error leyendo la imagen: " << error << std::endl;
-    return EXIT_FAILURE;
-  }
-  
-  // Filtro 1: Discrete Gaussian
-  typedef itk::DiscreteGaussianImageFilter<InternalImageType, InternalImageType> DiscreteGaussianFilterType;
-  DiscreteGaussianFilterType::Pointer discreteGaussian = DiscreteGaussianFilterType::New();
-  discreteGaussian->SetInput(reader->GetOutput());
-  int discreteGaussianVariance = 4;
-  int discreteGaussianMaximumKernelWidth = 3;
-  discreteGaussian->SetVariance(discreteGaussianVariance);
-  discreteGaussian->SetMaximumKernelWidth(discreteGaussianMaximumKernelWidth);
-  discreteGaussian->Update();
-  
-  // Filtro 2: Binomial Blur
-  typedef itk::BinomialBlurImageFilter<InternalImageType, InternalImageType> BinomialBlurFilterType;
-  BinomialBlurFilterType::Pointer binomialBlur = BinomialBlurFilterType::New();
-  binomialBlur->SetInput(reader->GetOutput());
-  int binomialBlurRepetitions = 5;
-  binomialBlur->SetRepetitions(binomialBlurRepetitions);
-  binomialBlur->Update();
-  
-  // Filtro 3: Recursive Gaussian (se aplica en dos direcciones para aproximar 2D)
-  typedef itk::RecursiveGaussianImageFilter<InternalImageType, InternalImageType> RecursiveGaussianFilterType;
-  RecursiveGaussianFilterType::Pointer filterX = RecursiveGaussianFilterType::New();
-  RecursiveGaussianFilterType::Pointer filterY = RecursiveGaussianFilterType::New();
-  filterX->SetDirection(0); // dirección X
-  filterY->SetDirection(1); // dirección Y
-  filterX->SetOrder(RecursiveGaussianFilterType::ZeroOrder);
-  filterY->SetOrder(RecursiveGaussianFilterType::ZeroOrder);
-  filterX->SetNormalizeAcrossScale(false);
-  filterY->SetNormalizeAcrossScale(false);
-  filterX->SetInput(reader->GetOutput());
-  filterY->SetInput(filterX->GetOutput());
-  int sigma = 3;
-  filterX->SetSigma(sigma);
-  filterY->SetSigma(sigma);
-  filterY->Update();
-  
-  // Función lambda para convertir la imagen de float a unsigned char y escribirla
-  typedef itk::RescaleIntensityImageFilter<InternalImageType, WriteImageType> RescaleFilterType;
-  typedef itk::ImageFileWriter<WriteImageType> WriterType;
-  
-  auto writeImage = [&](const std::string & suffix, InternalImageType::Pointer image) {
-    // Convertir la imagen de float a unsigned char (0-255)
-    RescaleFilterType::Pointer rescaler = RescaleFilterType::New();
-    rescaler->SetInput(image);
+
+    // Canny edge detection
+    using CannyFilterType = itk::CannyEdgeDetectionImageFilter<ImageType, ImageType>;
+    auto canny = CannyFilterType::New();
+    canny->SetInput(reader->GetOutput());
+    canny->SetVariance(variance);
+    canny->SetLowerThreshold(lowerThreshold);
+    canny->SetUpperThreshold(upperThreshold);
+    canny->Update();
+
+    // Rescale to 0-255 for output
+    using RescaleType = itk::RescaleIntensityImageFilter<ImageType, OutputImageType>;
+    auto rescaler = RescaleType::New();
+    rescaler->SetInput(canny->GetOutput());
     rescaler->SetOutputMinimum(0);
     rescaler->SetOutputMaximum(255);
     rescaler->Update();
-    
-    WriterType::Pointer writer = WriterType::New();
+
+    // Writer
+    using WriterType = itk::ImageFileWriter<OutputImageType>;
     std::ostringstream oss;
-    oss << outputDir << baseName << "_" << suffix << ext;
-    writer->SetFileName(oss.str());
+    oss << basename << "_canny_var" << variance
+        << "_thr" << lowerThreshold << "-" << upperThreshold << ".png";
+    auto writer = WriterType::New();
+    writer->SetFileName(outputDir + oss.str());
     writer->SetInput(rescaler->GetOutput());
-    try {
-      writer->Update();
-      std::cout << "Guardado: " << oss.str() << std::endl;
-    }
-    catch(itk::ExceptionObject & error) {
-      std::cerr << "Error escribiendo la imagen (" << oss.str() << "): " << error << std::endl;
-    }
-  };
-  
-  // Guardar imágenes con sufijos que identifiquen cada filtro
-  writeImage("original", reader->GetOutput());
-  
-  {
-    std::ostringstream oss;
-    oss << "discreteGaussian_V" << discreteGaussianVariance << "_K" << discreteGaussianMaximumKernelWidth;
-    writeImage(oss.str(), discreteGaussian->GetOutput());
-  }
-  
-  {
-    std::ostringstream oss;
-    oss << "binomialBlur_R" << binomialBlurRepetitions;
-    writeImage(oss.str(), binomialBlur->GetOutput());
-  }
-  
-  writeImage("recursiveGaussianX_S" + std::to_string(sigma), filterX->GetOutput());
-  writeImage("recursiveGaussianXY_S" + std::to_string(sigma), filterY->GetOutput());
-  
-  std::cout << "Imágenes guardadas en: " << outputDir << std::endl;
-  
-  return EXIT_SUCCESS;
+    writer->Update();
+
+    std::cout << "Saved Canny result to: " << outputDir + oss.str() << std::endl;
+    return EXIT_SUCCESS;
 }

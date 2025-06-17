@@ -1,116 +1,175 @@
+#include <iostream>
+#include <string>
+#include <vector>
+#include <sstream>
+
 #include "itkImage.h"
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
+#include "itkCurvatureFlowImageFilter.h"
+#include "itkMedianImageFilter.h"
+#include "itkConnectedThresholdImageFilter.h"
+#include "itkNeighborhoodConnectedImageFilter.h"
+#include "itkConfidenceConnectedImageFilter.h"
 #include "itkRescaleIntensityImageFilter.h"
-#include "itkShiftScaleImageFilter.h"
-#include "itkNormalizeImageFilter.h"
 
-#include <iostream>
-#include <sstream>
-
-int main( int argc, char* argv[] )
+int main(int argc, char* argv[])
 {
-  if ( argc != 2 )
-  {
-    std::cerr << "USAGE:\n" << argv[0] << " <Image Filename>" << std::endl;
-    return EXIT_FAILURE;
-  }
-  
-  const char * inputFile = argv[1];
-  
-  // Tipos de imagen: usaremos unsigned char para entrada (para archivos PNG) y float para procesamiento.
-  typedef unsigned char                    PixelType;
-  const unsigned int                       Dimension = 2;
-  typedef itk::Image<PixelType, Dimension> ImageType;
-  typedef itk::Image<float, Dimension>     FloatImageType;
-  
-  // Lector de imagen
-  typedef itk::ImageFileReader<ImageType>  ReaderType;
-  ReaderType::Pointer reader = ReaderType::New();
-  reader->SetFileName(inputFile);
-  
-  try {
-    reader->Update();
-  }
-  catch( itk::ExceptionObject & error ) {
-    std::cerr << "Error leyendo la imagen: " << error << std::endl;
-    return EXIT_FAILURE;
-  }
-  
-  // Mostrar dimensiones de la imagen
-  ImageType::RegionType region = reader->GetOutput()->GetLargestPossibleRegion();
-  ImageType::SizeType size = region.GetSize();
-  std::cout << "Dimensiones de la imagen: " << size[0] << " x " << size[1] << std::endl;
-  
-  // Filtro 1: RescaleIntensityImageFilter
-  typedef itk::RescaleIntensityImageFilter<ImageType, ImageType> RescaleFilterType;
-  RescaleFilterType::Pointer rescaleFilter = RescaleFilterType::New();
-  rescaleFilter->SetInput(reader->GetOutput());
-  rescaleFilter->SetOutputMinimum(10);
-  rescaleFilter->SetOutputMaximum(250);
-  
-  // Filtro 2: ShiftScaleImageFilter
-  typedef itk::ShiftScaleImageFilter<ImageType, ImageType> ShiftScaleFilterType;
-  ShiftScaleFilterType::Pointer shiftScaleFilter = ShiftScaleFilterType::New();
-  shiftScaleFilter->SetInput(reader->GetOutput());
-  shiftScaleFilter->SetShift(25);
-  shiftScaleFilter->SetScale(1.2);
-  
-  // Filtro 3: NormalizeImageFilter seguido de rescale para convertir a unsigned char
-  typedef itk::NormalizeImageFilter<ImageType, FloatImageType> NormalizeFilterType;
-  NormalizeFilterType::Pointer normalizeFilter = NormalizeFilterType::New();
-  normalizeFilter->SetInput(reader->GetOutput());
-  
-  typedef itk::RescaleIntensityImageFilter<FloatImageType, ImageType> CastRescaleFilterType;
-  CastRescaleFilterType::Pointer castRescaleFilter = CastRescaleFilterType::New();
-  castRescaleFilter->SetInput(normalizeFilter->GetOutput());
-  castRescaleFilter->SetOutputMinimum(0);
-  castRescaleFilter->SetOutputMaximum(255);
-  
-  try {
-    rescaleFilter->Update();
-    shiftScaleFilter->Update();
-    castRescaleFilter->Update();
-  }
-  catch( itk::ExceptionObject & error ) {
-    std::cerr << "Error durante el procesamiento: " << error << std::endl;
-    return EXIT_FAILURE;
-  }
-  
-  // Definir los escritores para guardar las imágenes
-  typedef itk::ImageFileWriter<ImageType> WriterType;
-  
-  // Directorio de salida (ajusta la ruta según tu estructura)
-  std::string outputDir = "../../../images/images_generated/";
-  
-  WriterType::Pointer writerOriginal = WriterType::New();
-  writerOriginal->SetFileName( outputDir + "original.png" );
-  writerOriginal->SetInput( reader->GetOutput() );
-  
-  WriterType::Pointer writerRescale = WriterType::New();
-  writerRescale->SetFileName( outputDir + "rescale.png" );
-  writerRescale->SetInput( rescaleFilter->GetOutput() );
-  
-  WriterType::Pointer writerShiftScale = WriterType::New();
-  writerShiftScale->SetFileName( outputDir + "shift_scale.png" );
-  writerShiftScale->SetInput( shiftScaleFilter->GetOutput() );
-  
-  WriterType::Pointer writerNormalize = WriterType::New();
-  writerNormalize->SetFileName( outputDir + "normalize.png" );
-  writerNormalize->SetInput( castRescaleFilter->GetOutput() );
-  
-  try {
-    writerOriginal->Update();
-    writerRescale->Update();
-    writerShiftScale->Update();
-    writerNormalize->Update();
-  }
-  catch( itk::ExceptionObject & error ) {
-    std::cerr << "Error escribiendo la imagen: " << error << std::endl;
-    return EXIT_FAILURE;
-  }
-  
-  std::cout << "Imágenes guardadas en: " << outputDir << std::endl;
-  
-  return EXIT_SUCCESS;
+    if (argc < 3)
+    {
+        std::cerr << "Uso: " << argv[0] << " <imagenEntrada> <prefijoSalida>" << std::endl;
+        return EXIT_FAILURE;
+    }
+
+    const char* nombreArchivoEntrada = argv[1];
+    const std::string prefijoSalida = argv[2];
+
+    constexpr unsigned int Dimension = 2;
+    using PixelType = float;
+    using ImageType = itk::Image<PixelType, Dimension>;
+    using OutputPixelType = unsigned char;
+    using OutputImageType = itk::Image<OutputPixelType, Dimension>;
+
+    // Lector
+    auto lector = itk::ImageFileReader<ImageType>::New();
+    lector->SetFileName(nombreArchivoEntrada);
+    lector->Update();
+
+    // Coordenadas semilla
+    ImageType::IndexType semilla = {128, 128};
+
+    // Suavizados disponibles: 0 = sin filtro, 1 = CurvatureFlow, 2 = Mediana 5x5
+    std::vector<int> modosSuavizado = {0, 1, 2};
+
+    // Segmentación - parámetros
+    std::vector<PixelType> ctInferior = {50.0f, 80.0f};
+    std::vector<PixelType> ctSuperior = {150.0f, 200.0f};
+
+    std::vector<unsigned int> ncRadios = {1, 3};
+
+    std::vector<unsigned int> ccRadios = {1, 2};
+    std::vector<double> ccMults = {1.0, 2.5};
+    std::vector<unsigned int> ccIter = {1, 3};
+
+    for (int modo : modosSuavizado)
+    {
+        ImageType::Pointer imagenFiltrada = lector->GetOutput();
+        std::string tagSuavizado;
+
+        // Aplicar suavizado
+        if (modo == 1) // CurvatureFlow
+        {
+            auto suavizado = itk::CurvatureFlowImageFilter<ImageType, ImageType>::New();
+            suavizado->SetInput(imagenFiltrada);
+            suavizado->SetTimeStep(0.125);
+            suavizado->SetNumberOfIterations(5);
+            suavizado->Update();
+            imagenFiltrada = suavizado->GetOutput();
+            tagSuavizado = "_curvflow";
+        }
+        else if (modo == 2) // Mediana 5x5
+        {
+            auto mediana = itk::MedianImageFilter<ImageType, ImageType>::New();
+            ImageType::SizeType radio;
+            radio.Fill(2); // 5x5
+            mediana->SetRadius(radio);
+            mediana->SetInput(imagenFiltrada);
+            mediana->Update();
+            imagenFiltrada = mediana->GetOutput();
+            tagSuavizado = "_median5x5";
+        }
+        else
+        {
+            tagSuavizado = "_nosmooth";
+        }
+
+        // --- ConnectedThreshold ---
+        for (size_t i = 0; i < ctInferior.size(); ++i)
+        {
+            auto filtro = itk::ConnectedThresholdImageFilter<ImageType, ImageType>::New();
+            filtro->SetInput(imagenFiltrada);
+            filtro->SetSeed(semilla);
+            filtro->SetLower(ctInferior[i]);
+            filtro->SetUpper(ctSuperior[i]);
+            filtro->Update();
+
+            auto rescale = itk::RescaleIntensityImageFilter<ImageType, OutputImageType>::New();
+            rescale->SetInput(filtro->GetOutput());
+            rescale->SetOutputMinimum(0);
+            rescale->SetOutputMaximum(255);
+            rescale->Update();
+
+            std::ostringstream outName;
+            outName << prefijoSalida << "_CT" << tagSuavizado
+                    << "_L" << ctInferior[i] << "_U" << ctSuperior[i] << ".png";
+
+            auto writer = itk::ImageFileWriter<OutputImageType>::New();
+            writer->SetInput(rescale->GetOutput());
+            writer->SetFileName(outName.str());
+            writer->Update();
+        }
+
+        // --- NeighborhoodConnected ---
+        for (auto radio : ncRadios)
+        {
+            auto filtro = itk::NeighborhoodConnectedImageFilter<ImageType, ImageType>::New();
+            filtro->SetInput(imagenFiltrada);
+            filtro->SetSeed(semilla);
+            ImageType::SizeType rad; rad.Fill(radio);
+            filtro->SetRadius(rad);
+            filtro->SetReplaceValue(255.0f);
+            filtro->Update();
+
+            auto rescale = itk::RescaleIntensityImageFilter<ImageType, OutputImageType>::New();
+            rescale->SetInput(filtro->GetOutput());
+            rescale->SetOutputMinimum(0);
+            rescale->SetOutputMaximum(255);
+            rescale->Update();
+
+            std::ostringstream outName;
+            outName << prefijoSalida << "_NC" << tagSuavizado << "_R" << radio << ".png";
+
+            auto writer = itk::ImageFileWriter<OutputImageType>::New();
+            writer->SetInput(rescale->GetOutput());
+            writer->SetFileName(outName.str());
+            writer->Update();
+        }
+
+        // --- ConfidenceConnected ---
+        for (auto radio : ccRadios)
+        {
+            for (auto mult : ccMults)
+            {
+                for (auto it : ccIter)
+                {
+                    auto filtro = itk::ConfidenceConnectedImageFilter<ImageType, ImageType>::New();
+                    filtro->SetInput(imagenFiltrada);
+                    filtro->SetSeed(semilla);
+                    filtro->SetInitialNeighborhoodRadius(radio);
+                    filtro->SetMultiplier(mult);
+                    filtro->SetNumberOfIterations(it);
+                    filtro->SetReplaceValue(255.0f);
+                    filtro->Update();
+
+                    auto rescale = itk::RescaleIntensityImageFilter<ImageType, OutputImageType>::New();
+                    rescale->SetInput(filtro->GetOutput());
+                    rescale->SetOutputMinimum(0);
+                    rescale->SetOutputMaximum(255);
+                    rescale->Update();
+
+                    std::ostringstream outName;
+                    outName << prefijoSalida << "_CC" << tagSuavizado
+                            << "_R" << radio << "_M" << mult << "_It" << it << ".png";
+
+                    auto writer = itk::ImageFileWriter<OutputImageType>::New();
+                    writer->SetInput(rescale->GetOutput());
+                    writer->SetFileName(outName.str());
+                    writer->Update();
+                }
+            }
+        }
+    }
+
+    std::cout << "Procesamiento completado." << std::endl;
+    return EXIT_SUCCESS;
 }

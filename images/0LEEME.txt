@@ -1,0 +1,25 @@
+Imágenes y Datasets que se utilizan en cada tarea y en cada ejercicio:
+
+DicomImage1.dcm
+t50.bmp
+IMG113
+task02/
+BrainProntonDensity3slices.mha
+BrainProntonDensity3slices.raw
+task03/
+VisibleWomanHeadSlice.png
+task04/
+BrainMidSagittalSlice.png
+task05/
+BrainMidSagittalSlice.png
+task06/
+BrainProntonDensity3slices.mha
+BrainProntonDensity3slices.raw
+task07/
+t50.bmp up to t60.bmp
+task08/
+DicomImage1.dcm, DicomImage2.dcm
+Exercise1/
+DicomImage1.dcm, DicomImage2.dcm
+Exercise2/
+IMG113 up to IMG130
