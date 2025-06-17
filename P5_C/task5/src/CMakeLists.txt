@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(task3)
+project(task5)
 
 find_package(ITK REQUIRED)
 include(${ITK_USE_FILE})
@@ -14,5 +14,5 @@ else()
   set(Glue ItkVtkGlue)
 endif()
 
-add_executable(task3 task3.cpp)
-target_link_libraries(task3 ${Glue} ${VTK_LIBRARIES} ${ITK_LIBRARIES})
+add_executable(task5 task5.cpp)
+target_link_libraries(task5 ${Glue} ${VTK_LIBRARIES} ${ITK_LIBRARIES})
