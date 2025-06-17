@@ -1,0 +1,14 @@
+ObjectType = Image
+NDims = 3
+BinaryData = True
+BinaryDataByteOrderMSB = False
+CompressedData = False
+TransformMatrix = 1 0 0 0 1 0 0 0 1
+Offset = -85 -164.699997 -42.5
+CenterOfRotation = 0 0 0
+AnatomicalOrientation = RAI
+ElementSpacing = 0.33203100000000002 0.33203100000000002 1.40625
+ITK_non_uniform_sampling_deviation = 116.556
+DimSize = 512 512 21
+ElementType = MET_INT
+ElementDataFile = ejercicio2.raw
