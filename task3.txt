@@ -1,0 +1,103 @@
+VTK Medical3.cxx – Descripción de clases y métodos principales
+
+1. vtkMetaImageReader::SetFileName()
+    - Define el archivo de entrada `.mhd` que contiene los datos volumétricos a cargar.
+    - Este lector interpreta tanto los metadatos (cabecera) como los datos crudos del volumen asociados (.raw).
+    - El método `Update()` fuerza la lectura inmediata del archivo para disponer de los datos en memoria.
+    - Similar al paso 1 de Medical1.cxx y Medical2.cxx.
+
+2. vtkFlyingEdges3D / vtkMarchingCubes
+    Filtros diseñados para extraer isosuperficies (superficies 3D) a partir de un volumen escalar.
+    Se utilizan dos instancias para visualizar diferentes estructuras anatómicas:
+        - SetValue(0, 500): extrae la superficie correspondiente a la piel.
+        - SetValue(0, 1150): extrae la superficie correspondiente al hueso.
+    Ambos filtros generan una malla poligonal (vtkPolyData) a partir del volumen.
+
+    Métodos importantes (idénticos a los usados en Medical1.cxx, Medical2.cxx y Medical3.cxx):
+        - SetNumberOfContours(n): define cuántas isosuperficies se quieren generar.
+        - SetValue(index, value): establece el valor de isocontorno deseado.
+        - ComputeNormalsOn(): activa el cálculo de normales para una mejor iluminación de la malla.
+        - ComputeScalarsOff(): evita copiar los valores escalares originales a los vértices.
+
+    Diferencias entre ambos filtros:
+        vtkMarchingCubes:
+            - Algoritmo clásico y ampliamente utilizado.
+            - Funciona bien con volúmenes pequeños o medianos.
+            - No usa multihilo, por lo que puede volverse lento en datasets grandes.
+
+        vtkFlyingEdges3D:
+            - Introducido en VTK >= 8.2 como reemplazo optimizado.
+            - Soporta ejecución multihilo (si está compilado con soporte).
+            - Mucho más rápido en volúmenes grandes, especialmente cuando están alineados con los ejes (X, Y, Z).
+            - Produce los mismos resultados topológicos pero con mayor eficiencia.
+
+    Nota: en Medical1.cxx se usa solo para extraer la piel; en Medical2.cxx y Medical3.cxx se utilizan dos instancias (piel y hueso) y se renderizan ambas superficies (aunque en Medical3.cxx, la del hueso se oculta con VisibilityOff()).
+
+3. vtkStripper::SetInputConnection()
+    - Convierte las mallas generadas en tiras de triángulos (triangle strips).
+    - Reduce la carga de renderizado y mejora la eficiencia gráfica.
+    - Se aplica a cada isosuperficie extraída (piel y hueso).
+    - Igual que en Medical2.cxx; no se usa en Medical1.cxx.
+
+4. vtkPolyDataMapper::SetInputConnection()
+    - Conecta la geometría (tras pasar por Stripper) con el sistema de renderizado.
+    - ScalarVisibilityOff() desactiva la coloración por intensidades originales.
+    - Similar a Medical1.cxx y Medical2.cxx.
+
+5. vtkActor::SetMapper()
+    - Representa visualmente los objetos renderizados (piel, hueso, contorno).
+    - SetOpacity(0.5) aplica transparencia parcial (ej. piel semitransparente).
+    - VisibilityOff() permite ocultar temporalmente el actor (ej. hueso inicialmente oculto).
+    - En Medical1.cxx solo hay un actor para la piel; en Medical2.cxx y Medical3.cxx hay actores para piel y hueso, y se añaden propiedades visuales avanzadas.
+
+6. vtkOutlineFilter
+    - Dibuja un contorno cúbico alrededor del volumen.
+    - Proporciona contexto espacial en la escena renderizada.
+    - Igual que en Medical1.cxx y Medical2.cxx.
+
+7. vtkImageMapToColors + vtkLookupTable
+    - vtkImageMapToColors: Asocia los valores escalares del volumen a colores según una vtkLookupTable.
+    - Convierte las intensidades a imágenes tipo unsigned char para visualización.
+    - vtkLookupTable: Define cómo se colorean las imágenes a partir de los valores escalares.
+    - Se utilizan tres variantes de LUT:
+          * bwLut: escala de grises (Saturación = 0).
+          * hueLut: espectro completo (Hue de 0 a 1).
+          * satLut: variación de saturación sobre un mismo tono fijo.
+    - Cada LUT se asocia a un plano (sagital, axial, coronal), proporcionando distintos estilos visuales.
+    - Este paso es exclusivo de Medical3.cxx y permite visualizar cortes 2D coloreados del volumen.
+
+8. vtkImageActor
+    - Representa imágenes 2D en el espacio 3D.
+    - SetDisplayExtent() selecciona el plano que se visualizará (sagital, axial o coronal).
+    - ForceOpaqueOn() garantiza opacidad total del plano.
+    - Permite superponer cortes ortogonales a las isosuperficies 3D, enriqueciendo el análisis anatómico.
+
+9. vtkCamera
+    - Configura el punto de vista y orientación del usuario.
+    - Métodos destacados:
+          * SetFocalPoint(), SetPosition(), Azimuth(), Elevation(), Dolly().
+          * ResetCameraClippingRange() adapta los planos de recorte tras un movimiento de cámara.
+    - Igual que en Medical1.cxx y Medical2.cxx.
+
+10. vtkRenderer / vtkRenderWindow / vtkRenderWindowInteractor
+     - vtkRenderer: gestiona actores, fondo y cámara.
+     - vtkRenderWindow: contiene la escena renderizada.
+     - vtkRenderWindowInteractor: permite interacción con la escena mediante ratón y teclado.
+     - Igual que en Medical1.cxx y Medical2.cxx.
+
+11. iren->Initialize(), iren->Start()
+     - Inician el bucle de interacción, permitiendo rotar, hacer zoom, etc.
+     - Igual que en Medical1.cxx y Medical2.cxx.
+
+---------------------------------------------------------------------
+Notas adicionales:
+---------------------------------------------------------------------
+- Esta demo visualiza simultáneamente:
+      * Dos isosuperficies: piel (transparente) y hueso (inicialmente oculto).
+      * Tres planos ortogonales (sagital, axial, coronal) del volumen original, cada uno con una tabla de colores distinta.
+- La combinación de superficies 3D con cortes 2D permite un análisis anatómico mucho más completo y didáctico.
+- El uso de vtkFlyingEdges3D en vez de vtkMarchingCubes mejora considerablemente el rendimiento en sistemas modernos (hasta 5-10x más rápido en volúmenes grandes).
+- Puedes modificar los valores de SetValue() para extraer otras estructuras según las intensidades del volumen.
+- El pipeline es una extensión de Medical2.cxx, añadiendo la visualización simultánea de cortes 2D coloreados.
+- Para datos categóricos (label maps), se recomienda vtkDiscreteMarchingCubes.
+- Referencia: Medical3.cxx amplía el pipeline de Medical2.cxx, manteniendo la estructura modular y añadiendo herramientas avanzadas de visualización médica.

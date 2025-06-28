@@ -1,0 +1,75 @@
+VTK Medical2.cxx – Descripción de clases y métodos principales
+
+1. vtkMetaImageReader::SetFileName()
+   - Carga un archivo de imagen médica en formato `.mhd`, que define un volumen 3D.
+   - Interpreta tanto los metadatos (cabecera) como los datos crudos asociados (normalmente `.raw`).
+   - Ejemplo de uso: `FullHead.mhd`.
+   - Similar al paso 1 de Medical1.cxx.
+
+2. vtkFlyingEdges3D / vtkMarchingCubes
+   - Filtro que genera isosuperficies (superficies 3D) a partir de un volumen de datos.
+   - Se utiliza dos veces para extraer distintas estructuras anatómicas:
+     - `SetValue(0, 500)`: extrae la superficie de la piel.
+     - `SetValue(0, 1150)`: extrae la superficie del hueso.
+   - Ambos filtros reciben como entrada la salida del lector (`reader->GetOutputPort()`).
+   - Métodos importantes (idénticos a los de Medical1.cxx):
+     - `SetNumberOfContours(n)`: define cuántas isosuperficies se generarán.
+     - `SetValue(index, value)`: define el valor isocontorno deseado.
+     - `ComputeNormalsOn()`: activa el cálculo de normales para iluminación realista.
+     - `ComputeScalarsOff()`: evita copiar los valores escalares originales a los vértices.
+   - Nota: `vtkFlyingEdges3D` es preferible si está disponible (más rápido y multihilo).
+   - Comentario: En Medical2.cxx se usan dos instancias para obtener piel y hueso, mientras que en Medical1.cxx solo se extrae la piel.
+
+3. vtkStripper::SetInputConnection()
+   - Toma como entrada una superficie generada (malla) y la transforma en tiras de triángulos.
+   - Mejora el rendimiento gráfico al reducir el número de primitivas gráficas.
+   - Se aplica a cada isosuperficie extraída (piel y hueso).
+   - Este paso es una extensión respecto a Medical1.cxx, donde no se utiliza `vtkStripper`.
+
+4. vtkPolyDataMapper::SetInputConnection()
+   - Mapea la geometría generada por el `vtkStripper` a una representación visual.
+   - `ScalarVisibilityOff()` desactiva la visualización de colores basados en intensidades originales.
+   - Similar al paso 3 de Medical1.cxx.
+
+5. vtkActor::SetMapper()
+   - Asocia un mapeador a un actor que puede ser representado gráficamente.
+   - Cada superficie (piel, hueso) tiene su propio actor.
+   - Propiedades adicionales para la piel:
+     - `SetOpacity(0.5)`: piel semitransparente.
+     - `SetSpecular(0.3)` y `SetSpecularPower(20)`: reflejos especulares para una apariencia más realista.
+   - En Medical1.cxx solo se configura un actor para la piel, aquí se añaden propiedades visuales avanzadas y un actor adicional para el hueso.
+
+6. vtkOutlineFilter
+   - Genera un contorno cúbico que rodea el volumen de entrada.
+   - Útil para contextualizar la geometría renderizada.
+   - Igual que en Medical1.cxx.
+
+7. vtkCamera
+   - Configura la vista inicial 3D de la escena.
+   - Métodos destacados:
+     - `SetPosition()` y `SetFocalPoint()` definen la dirección de la cámara.
+     - `Azimuth()` y `Elevation()` modifican el ángulo de visión.
+     - `Dolly(1.5)` aplica un zoom hacia el centro de la escena.
+   - Equivalente a la configuración de cámara en Medical1.cxx.
+
+8. vtkRenderer / vtkRenderWindow / vtkRenderWindowInteractor
+   - `vtkRenderer`: organiza los actores y la cámara en la escena.
+   - `vtkRenderWindow`: ventana donde se dibuja la escena.
+   - `vtkRenderWindowInteractor`: permite al usuario rotar, mover o hacer zoom con el ratón/teclado.
+   - Igual que en Medical1.cxx.
+
+9. renWin->Render(), iren->Initialize(), iren->Start()
+   - Inician el bucle de renderizado e interacción gráfica.
+   - La imagen es renderizada en pantalla y se puede navegar por ella en tiempo real.
+   - Igual que en Medical1.cxx.
+
+Notas adicionales:
+---------------------------------------------------------------------
+- Este código es una extensión del Medical1.cxx, pero incorpora:
+   - Dos isovalores: piel (500) y hueso (1150), permitiendo visualización multicapa.
+   - Tiras de triángulos mediante `vtkStripper` para optimizar el renderizado.
+   - Efectos visuales realistas: color, transparencia y reflejos especulares.
+- Puedes modificar los valores de `SetValue()` para extraer otras estructuras según las intensidades del volumen.
+- Útil para aprender sobre visualización anatómica multicapa mediante isosuperficies 3D.
+- Recomendación: Para grandes volúmenes, usar `vtkFlyingEdges3D` por su mayor rendimiento (igual que en Medical1.cxx).
+- Comparte la mayor parte del pipeline con Medical1.cxx, pero añade la visualización simultánea de piel y hueso y optimización gráfica.

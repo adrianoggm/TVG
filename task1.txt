@@ -1,0 +1,65 @@
+VTK Medical1.cxx – Descripción de clases y métodos principales
+
+1. vtkMetaImageReader::SetFileName()
+   - Define el archivo de entrada `.mhd` que contiene los datos volumétricos a cargar.
+   - Este lector interpreta tanto los metadatos (cabecera) como los datos crudos del volumen asociados (.raw).
+   - Se conecta mediante `GetOutputPort()` al siguiente filtro en la cadena.
+
+2. vtkMarchingCubes (o vtkFlyingEdges3D si está disponible)
+Es el filtro central de este procesamiento.
+   - Filtro específico para extraer isosuperficies desde un volumen 3D estructurado.
+   - Se utiliza el método `SetValue(index, value)` para definir el valor isocontorno deseado.
+   - En este ejemplo, `SetValue(0, 500)` extrae la superficie con intensidad 500 (correspondiente típicamente a la piel).
+   - Este filtro implementa el algoritmo Marching Cubes clásico y genera una malla poligonal (normalmente triángulos).
+   - Métodos importantes:
+     - `SetNumberOfContours(n)`: define cuántas isosuperficies se generarán.
+     - `GenerateValues(n, min, max)`: genera `n` valores de contorno equiespaciados entre `min` y `max`.
+     - `ComputeNormalsOn()`: activa el cálculo de normales para una iluminación correcta.
+     - `ComputeScalarsOff()`: evita copiar los valores escalares originales a los vértices.
+   - Alternativa optimizada: `vtkFlyingEdges3D` (más rápido y multihilo en versiones ≥ 8.2).
+
+3. vtkPolyDataMapper::SetInputConnection()
+   - Conecta el filtro de isosuperficie (`skinExtractor`) con el mapeador gráfico.
+   - `ScalarVisibilityOff()` desactiva la coloración por intensidades del volumen; se usa el color definido manualmente.
+
+4. vtkActor::SetMapper()
+   - Asocia un `vtkPolyDataMapper` a un `vtkActor`, que es la entidad renderizable en la escena.
+
+5. vtkProperty::SetDiffuseColor()
+   - Define el color difuso (principal) del objeto 3D.
+   - También se configura una propiedad de "backface" (cara posterior), útil para dar profundidad visual.
+
+6. vtkOutlineFilter
+   - Genera una malla con el contorno cúbico del volumen de entrada.
+   - Sirve como referencia visual para comprender la escala y los límites del volumen original.
+
+7. vtkCamera
+   - Controla la vista y orientación del usuario sobre la escena.
+   - Métodos clave:
+     - `SetViewUp()`, `SetPosition()`, `SetFocalPoint()` → inicializan la dirección de visualización.
+     - `Azimuth(deg)` y `Elevation(deg)` → rotan la cámara.
+     - `Dolly(factor)` → acerca o aleja el punto de vista.
+
+8. vtkRenderer / vtkRenderWindow / vtkRenderWindowInteractor
+   - `vtkRenderer`: gestiona los actores y la cámara.
+   - `vtkRenderWindow`: ventana que contiene el render final.
+   - `vtkRenderWindowInteractor`: maneja la interacción del usuario mediante ratón/teclado.
+
+9. renWin->Render(), iren->Initialize(), iren->Start()
+   - Comienzan el ciclo de renderizado interactivo.
+   - La imagen es renderizada en pantalla y se puede navegar por ella en tiempo real.
+
+Notas adicionales:
+---------------------------------------------------------------------
+- Este pipeline visualiza un modelo de piel extraído a partir de un valor isocontorno de 500.
+- Puedes experimentar cambiando `SetValue(0, ...)` por otros valores:
+   - 300 → tejidos blandos.
+   - 800 → transiciones de tejidos.
+   - 1150 → estructuras óseas.
+- Para múltiples isosuperficies, se pueden usar:
+   - `SetNumberOfContours(3)` y luego:
+     - `SetValue(0, 400)`
+     - `SetValue(1, 700)`
+     - `SetValue(2, 1100)`
+- Para grandes volúmenes o entornos con multihilo, el código ofrece usar `vtkFlyingEdges3D` como reemplazo directo de `vtkMarchingCubes`, ya que ofrece mayor rendimiento y escalabilidad.
+- Para datos categóricos (label maps), usar `vtkDiscreteMarchingCubes`.

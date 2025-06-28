@@ -1,0 +1,80 @@
+VTK Medical4.cxx – Descripción de clases y métodos principales
+
+1. vtkMetaImageReader::SetFileName()
+   - Carga el volumen a partir de un archivo `.mhd` con cabecera asociada.
+   - Este lector interpreta tanto los metadatos como los datos crudos del volumen (.raw).
+   - Similar al paso 1 de Medical1.cxx, Medical2.cxx y Medical3.cxx.
+
+2. vtkFixedPointVolumeRayCastMapper
+Principalmente es el método diferencial comparado con los otros 3 programas 
+   - Mapeador volumétrico encargado de realizar el renderizado por raycasting.
+   - Lanza rayos a través del volumen, acumulando color y opacidad según las funciones de transferencia definidas.
+   - Permite visualizar estructuras internas sin segmentación previa ni generación de mallas.
+   - Soporta modos de mezcla como composición y MIP (Maximum Intensity Projection).
+   - Utiliza aritmética de punto fijo (15 bits) para mejorar la eficiencia y precisión.
+   - Implementa "space leaping": acelera el renderizado saltando regiones homogéneas del volumen.
+   - Permite ajustar la distancia entre muestras (`SetSampleDistance`), la resolución de imagen (`SetImageSampleDistance`) y el número de hilos (`SetNumberOfThreads`).
+   - Puede adaptar automáticamente la calidad para mantener la velocidad de interacción (`SetAutoAdjustSampleDistances`).
+   - **Diferencia clave:** A diferencia de `vtkMarchingCubes` o `vtkFlyingEdges3D`, aquí no se extraen isosuperficies ni se generan mallas poligonales, sino que se representa el volumen directamente (volume rendering).
+   - El raycasting volumétrico es más demandante computacionalmente, pero ofrece una visión global y continua de los tejidos.
+   - Puede combinarse con geometría poligonal (intermixing) y soporta sombreado avanzado (iluminación, gradiente, etc.).
+
+3. vtkColorTransferFunction
+   - Mapea los valores escalares (intensidades) del volumen a colores RGB.
+   - Ejemplo de asignación:
+     - Intensidad 0 → negro (vacío).
+     - Intensidades 500–1000 → color carne (tejidos blandos).
+     - Intensidades ≥1150 → color marfil (hueso).
+   - Permite resaltar diferentes tejidos según su rango de intensidad.
+   - Similar a la asignación de color en los mapeadores de isosuperficie, pero aquí se aplica a todo el volumen.
+
+4. vtkPiecewiseFunction (Opacidad Escalar)
+   - Controla la opacidad en función del valor escalar.
+   - Ejemplo:
+     - Tejidos blandos (500–1000): opacidad baja (0.15).
+     - Hueso (1150): opacidad alta (0.85).
+     - Valores bajos (aire/ruido): totalmente transparente (0.0).
+   - Permite "ver a través" de tejidos menos densos y resaltar estructuras internas.
+
+5. vtkPiecewiseFunction (Opacidad por Gradiente)
+   - Añade opacidad basada en el gradiente (cambio de intensidad).
+   - Mejora la visualización de los bordes entre tejidos, haciendo más visibles las transiciones bruscas.
+   - Zonas planas (bajo gradiente): baja opacidad.
+   - Zonas con transiciones (alto gradiente): alta opacidad.
+   - Este control adicional no está presente en los ejemplos de isosuperficie.
+
+6. vtkVolumeProperty
+   - Une las funciones de color, opacidad escalar y opacidad por gradiente en una propiedad común para el volumen.
+   - Parámetros relevantes:
+     - `SetInterpolationTypeToLinear()`: suaviza los bordes interpolando valores.
+     - `ShadeOn()`: activa iluminación direccional para dar sensación de profundidad.
+     - Coeficientes Ambient, Diffuse, Specular: controlan el efecto de la iluminación.
+   - Similar a la configuración de propiedades visuales en los actores de isosuperficie, pero aquí aplicado al volumen completo.
+
+7. vtkVolume
+   - Objeto 3D que representa el volumen renderizado completo.
+   - Se asocia a un mapper (`SetMapper()`) y a sus propiedades (`SetProperty()`).
+   - Equivalente al uso de `vtkActor` en los ejemplos de isosuperficie, pero específico para volumen.
+
+8. vtkRenderer / vtkRenderWindow / vtkRenderWindowInteractor
+   - `vtkRenderer`: gestiona la escena 3D.
+   - `vtkRenderWindow`: dibuja la imagen.
+   - `vtkRenderWindowInteractor`: permite interacción con el usuario (rotar, hacer zoom, etc.).
+   - Igual que en Medical1.cxx, Medical2.cxx y Medical3.cxx.
+
+9. vtkCamera
+   - Se posiciona para dar una vista oblicua inicial al volumen (`Azimuth`, `Elevation`).
+   - `SetFocalPoint()` centra la cámara en el volumen.
+   - `SetPosition()` define la distancia y ángulo de visión.
+   - Similar a la configuración de cámara en los ejemplos anteriores.
+
+Notas adicionales:
+---------------------------------------------------------------------
+- Este ejemplo muestra un renderizado volumétrico completo, sin necesidad de generar geometría explícita como mallas.
+- **Diferencia clave respecto a Medical1.cxx, Medical2.cxx y Medical3.cxx:** No se usan `vtkMarchingCubes` ni `vtkFlyingEdges3D` para extraer isosuperficies, sino que se utiliza una representación directa basada en raycasting volumétrico.
+- La combinación de funciones de color, opacidad escalar y gradiente permite un control fino sobre la visualización de estructuras internas sin segmentación previa.
+- El volume rendering es especialmente útil para explorar anatomía general, detectar lesiones o visualizar relaciones espaciales entre tejidos.
+- Puedes modificar las funciones de transferencia para resaltar diferentes tejidos o patologías según el rango de intensidades.
+- Aunque el renderizado volumétrico es más exigente computacionalmente, ofrece una visión más rica y continua que la visualización basada solo en isosuperficies.
+- `vtkFixedPointVolumeRayCastMapper` soporta modos avanzados como MIP, composición, y técnicas de aceleración como space leaping.
+- Referencia: Este pipeline es una evolución respecto a los anteriores, orientado a la visualización médica avanzada y exploratoria. Para segmentación explícita o análisis de superficies, sigue siendo útil el pipeline basado en `vtkMarchingCubes`/`vtkFlyingEdges3D`.
